@@ -49,18 +49,24 @@ rabbitmq.on('error', function(e) {
 });
 
 rabbitmq.on('ready', function () {
-    rabbitmq.queue('', {exclusive: true}, function (q) {
-        q.bind(argv._[1], '#');
-        q.subscribe(function (data) {
-            message = JSON.parse(data.data.toString('utf8'));
-            messages.push(message);
-            if (messages.length > max_queue)
-                messages.shift();
-            followers.each(function (client) {
-                client.got_message(message);
-            });
-            pollers.each(function (request) {
-                request.got_message(message);
+    // Ép Node.js tự động tạo Exchange dmoj-events dạng fanout nếu chưa có
+    var exchange = rabbitmq.exchange(argv._[1], {passive: false, type: 'fanout', durable: true}, function() {
+        console.log('Sàn giao dịch ' + argv._[1] + ' đã sẵn sàng!');
+        
+        // Sau khi exchange sẵn sàng, tiến hành tạo queue và bind như cũ
+        rabbitmq.queue('', {exclusive: true}, function (q) {
+            q.bind(argv._[1], '#');
+            q.subscribe(function (data) {
+                message = JSON.parse(data.data.toString('utf8'));
+                messages.push(message);
+                if (messages.length > max_queue)
+                    messages.shift();
+                followers.each(function (client) {
+                    client.got_message(message);
+                });
+                pollers.each(function (request) {
+                    request.got_message(message);
+                });
             });
         });
     });
